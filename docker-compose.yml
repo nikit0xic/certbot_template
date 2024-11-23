@@ -1,0 +1,27 @@
+services:
+
+  app:
+    image: registry.gitlab.com/domain/app:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+    container_name: app-db
+    volumes:
+      - "/var/lib/app/db:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASWD}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+
+  nginx:
+    image: registry.gitlab.com/domain/app/nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt/archive/certfolder:/etc/letsencrypt/certfolder

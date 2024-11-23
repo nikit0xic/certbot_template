@@ -1,0 +1,68 @@
+stages:
+  - setup
+  - prepare
+  - build
+  - deploy
+
+default:
+  tags: ["your-runner-tag"]
+
+setup:
+  stage: setup
+  script:
+    - ./self_certified/install-docker.sh
+    - ./self_certified/install-certbot.sh
+  only:
+    - master
+  when: manual
+
+prepare:
+  stage: prepare
+  script:
+    - envsubst < configs.toml > configs.toml.tmp && mv configs.toml.tmp configs.toml #Applying your app configs
+    - cat configs.toml
+  artifacts:
+    paths:
+      - configs.toml
+  only:
+    - master
+  when: manual
+
+build:nginx:
+  tags:
+    - kube-dev
+  stage: build
+  script:
+    - cd self_certified/nginx/Dockerfile #Workdir of Dockerfile of Nginx
+    - echo "$CI_REGISTRY_TOKEN" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build -t "$CI_REGISTRY/$CI_REGISTRY_NAME/nginx/:latest" .
+    - docker push "$CI_REGISTRY/$CI_REGISTRY_NAME/nginx:latest"
+  only:
+    - master
+  when: manual
+
+build:app:
+  tags:
+    - kube-dev
+  stage: build
+  script:
+    - printenv
+    - echo "$CI_REGISTRY_TOKEN" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build -t "$CI_REGISTRY/$CI_REGISTRY_NAME:latest" .
+    - docker push "$CI_REGISTRY/$CI_REGISTRY_NAME:latest"
+  only:
+    - master
+  when: manual
+
+deploy_app:
+  stage: deploy
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username $CI_REGISTRY_USER --password-stdin
+  script:
+    - sudo certbot certificates
+#    - docker compose down
+    - docker compose pull
+    - docker compose up -d
+  only:
+    - master
+  when: manual
